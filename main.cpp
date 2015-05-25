@@ -214,6 +214,35 @@ Texture load_texture(const string& fname) {
     return rv;
 }
 
+Texture gen_dithermap() {
+    std::vector<unsigned char> image;
+    unsigned width = 800;
+    unsigned height = 600;
+    image.resize(width*height, 255);
+
+    for (int r=0; r<height; ++r) {
+        for (int c=0; c<width; ++c) {
+            int i = r*width + c;
+            image[i] = ((r+c)%2) * 255;
+        }
+    }
+
+    Texture rv;
+    rv.width = width;
+    rv.height = height;
+
+    glGenTextures(1, &rv.handle);
+    glBindTexture(GL_TEXTURE_2D, rv.handle);
+
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, &image[0]);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    return rv;
+}
+
 void error_cb(int error, const char* description) {
     ostringstream oss;
     oss << "ERROR " << error << ": " << description << endl;
@@ -245,7 +274,6 @@ int main() try {
     }
 
     glEnable(GL_DEPTH_TEST);
-    glEnable(GL_TEXTURE_2D);
     glDepthFunc(GL_LESS);
     glClearDepth(1.f);
 
@@ -259,6 +287,9 @@ int main() try {
     glDeleteShader(frag_shader);
     glUseProgram(shader);
 
+    glUniform1i(glGetUniformLocation(shader, "Texture"), 0);
+    glUniform1i(glGetUniformLocation(shader, "DitherMap"), 1);
+
     VAO mesh = vao_from_obj(
             "data/kawaii.obj",
             glGetAttribLocation(shader, "VertexPosition"),
@@ -267,6 +298,7 @@ int main() try {
     );
 
     Texture meshTexture = load_texture("data/kawaii.png");
+    Texture ditherTexture = gen_dithermap();
 
     mat4 camProj = perspective(90.f, 4.f/3.f, 0.01f, 100.f);
     mat4 camView = translate(mat4(1.f), vec3(0.f, -2.f, -5.f));
@@ -288,10 +320,18 @@ int main() try {
         glUniformMatrix4fv(camViewUniform, 1, GL_FALSE, value_ptr(camView));
         glUniformMatrix4fv(modelPosUniform, 1, GL_FALSE, value_ptr(modelPos));
 
+        glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, meshTexture.handle);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, ditherTexture.handle);
+
         glBindVertexArray(mesh.handle);
         glDrawArrays(GL_TRIANGLES, 0, mesh.num_tris*3);
         glBindVertexArray(0);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, 0);
 
         glfwSwapBuffers(window);
