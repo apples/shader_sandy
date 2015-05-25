@@ -214,16 +214,22 @@ Texture load_texture(const string& fname) {
     return rv;
 }
 
-Texture gen_dithermap() {
+using DitherArr = int[4][4];
+Texture gen_dithermap(const DitherArr& arr = {
+        {1, 0, 1, 0},
+        {0, 1, 0, 1},
+        {1, 0, 1, 0},
+        {0, 1, 0, 1},
+}) {
     std::vector<unsigned char> image;
-    unsigned width = 800;
-    unsigned height = 600;
+    unsigned width = 640;
+    unsigned height = 480;
     image.resize(width*height, 255);
 
     for (int r=0; r<height; ++r) {
         for (int c=0; c<width; ++c) {
             int i = r*width + c;
-            image[i] = ((r+c)%2) * 255;
+            image[i] = (arr[r%4][c%4]==1? 255 : 0);
         }
     }
 
@@ -262,7 +268,7 @@ int main() try {
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Shader Sandy", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(640, 480, "Shader Sandy", nullptr, nullptr);
     if (!window) {
         throw runtime_error("Failed to open window!");
     }
@@ -288,7 +294,11 @@ int main() try {
     glUseProgram(shader);
 
     glUniform1i(glGetUniformLocation(shader, "Texture"), 0);
-    glUniform1i(glGetUniformLocation(shader, "DitherMap"), 1);
+    glUniform1i(glGetUniformLocation(shader, "DitherMap[0]"), 1);
+    glUniform1i(glGetUniformLocation(shader, "DitherMap[1]"), 2);
+    glUniform1i(glGetUniformLocation(shader, "DitherMap[2]"), 3);
+    glUniform1i(glGetUniformLocation(shader, "DitherMap[3]"), 4);
+    glUniform1i(glGetUniformLocation(shader, "DitherMap[4]"), 5);
 
     VAO mesh = vao_from_obj(
             "data/kawaii.obj",
@@ -298,7 +308,38 @@ int main() try {
     );
 
     Texture meshTexture = load_texture("data/kawaii.png");
-    Texture ditherTexture = gen_dithermap();
+    Texture ditherTextures[] = {
+            gen_dithermap({
+                                  {0, 0, 0, 0},
+                                  {0, 0, 0, 0},
+                                  {0, 0, 0, 0},
+                                  {0, 0, 0, 0},
+                          }),
+            gen_dithermap({
+                                  {0, 0, 0, 0},
+                                  {0, 1, 0, 1},
+                                  {0, 0, 0, 0},
+                                  {0, 1, 0, 1},
+                          }),
+            gen_dithermap({
+                                  {1, 0, 1, 0},
+                                  {0, 1, 0, 1},
+                                  {1, 0, 1, 0},
+                                  {0, 1, 0, 1},
+                          }),
+            gen_dithermap({
+                                  {1, 1, 1, 1},
+                                  {1, 0, 1, 0},
+                                  {1, 1, 1, 1},
+                                  {1, 0, 1, 0},
+                          }),
+            gen_dithermap({
+                                  {1, 1, 1, 1},
+                                  {1, 1, 1, 1},
+                                  {1, 1, 1, 1},
+                                  {1, 1, 1, 1},
+                          }),
+    };
 
     mat4 camProj = perspective(90.f, 4.f/3.f, 0.01f, 100.f);
     mat4 camView = translate(mat4(1.f), vec3(0.f, -2.f, -5.f));
@@ -307,6 +348,9 @@ int main() try {
     GLint camProjUniform = glGetUniformLocation(shader, "camProj");
     GLint camViewUniform = glGetUniformLocation(shader, "camView");
     GLint modelPosUniform = glGetUniformLocation(shader, "modelPos");
+
+    vec3 lightPos = vec3(5,3,1);
+    float lightRadius = 5.f;
 
     double last_time = glfwGetTime();
     while (!glfwWindowShouldClose(window)) {
@@ -320,10 +364,21 @@ int main() try {
         glUniformMatrix4fv(camViewUniform, 1, GL_FALSE, value_ptr(camView));
         glUniformMatrix4fv(modelPosUniform, 1, GL_FALSE, value_ptr(modelPos));
 
+        glUniform3fv(glGetUniformLocation(shader, "LightPos"), 1, value_ptr(lightPos));
+        glUniform1f(glGetUniformLocation(shader, "LightRadius"), lightRadius);
+
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, meshTexture.handle);
         glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, ditherTexture.handle);
+        glBindTexture(GL_TEXTURE_2D, ditherTextures[0].handle);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, ditherTextures[1].handle);
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, ditherTextures[2].handle);
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, ditherTextures[3].handle);
+        glActiveTexture(GL_TEXTURE5);
+        glBindTexture(GL_TEXTURE_2D, ditherTextures[4].handle);
 
         glBindVertexArray(mesh.handle);
         glDrawArrays(GL_TRIANGLES, 0, mesh.num_tris*3);
@@ -333,11 +388,51 @@ int main() try {
         glBindTexture(GL_TEXTURE_2D, 0);
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE5);
+        glBindTexture(GL_TEXTURE_2D, 0);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
 
-        modelPos = rotate(mat4(1.f), float(this_time), vec3(0.f, 1.f, 0.f));
+        if (glfwGetKey(window,GLFW_KEY_SPACE) != GLFW_PRESS) {
+            modelPos = rotate(modelPos, float(delta), vec3(0.f, 1.f, 0.f));
+        }
+
+        float camSpeed = delta*2.f;
+
+        if (glfwGetKey(window,GLFW_KEY_LEFT) == GLFW_PRESS) {
+            lightPos.x -= camSpeed;
+        }
+        if (glfwGetKey(window,GLFW_KEY_RIGHT) == GLFW_PRESS) {
+            lightPos.x += camSpeed;
+        }
+
+        if (glfwGetKey(window,GLFW_KEY_UP) == GLFW_PRESS) {
+            lightPos.y += camSpeed;
+        }
+        if (glfwGetKey(window,GLFW_KEY_DOWN) == GLFW_PRESS) {
+            lightPos.y -= camSpeed;
+        }
+
+        if (glfwGetKey(window,GLFW_KEY_W) == GLFW_PRESS) {
+            lightPos.z += camSpeed;
+        }
+        if (glfwGetKey(window,GLFW_KEY_S) == GLFW_PRESS) {
+            lightPos.z -= camSpeed;
+        }
+
+        if (glfwGetKey(window,GLFW_KEY_D) == GLFW_PRESS) {
+            lightRadius += delta;
+        }
+        if (glfwGetKey(window,GLFW_KEY_A) == GLFW_PRESS) {
+            lightRadius -= delta;
+        }
 
         last_time = this_time;
     }

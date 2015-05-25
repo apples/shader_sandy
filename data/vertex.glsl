@@ -10,6 +10,7 @@ uniform mat4 modelPos;
 
 out vec2 TexCoord;
 out vec3 Normal;
+out vec3 Position;
 
 void main() {
     mat4 MVP = camProj * camView * modelPos;
@@ -18,6 +19,7 @@ void main() {
 
     TexCoord = VertexTexcoord;
     Normal = (NormalMatrix * vec4(VertexNormal,1.0)).xyz;
+    Position = (modelPos * vec4(VertexPosition,1.0)).xyz;
 
     gl_Position = MVP * vec4(VertexPosition,1.0);
 }
