@@ -5,7 +5,7 @@ in vec3 Normal;
 in vec3 Position;
 
 uniform sampler2D Texture;
-uniform sampler2D DitherMap[5];
+uniform sampler3D DitherMap;
 
 uniform vec3 LightPos;
 uniform float LightRadius;
@@ -40,8 +40,8 @@ void main() {
     } else if (dist > (lrad+0.2)) {
         shade = 0.2;
     } else {
-        int pal = clamp(int(4.0*(dist-lrad)/0.2),0,3);
-        if (texture(DitherMap[3-pal], vec2(gl_FragCoord.x/640.0,gl_FragCoord.y/480.0)).r > 0.5) {
+        float ditherStrength = (dist-lrad)/0.2;
+        if (texture(DitherMap, vec3(gl_FragCoord.x/640.0,gl_FragCoord.y/480.0,ditherStrength)).r > 0.5) {
             shade = 1.0;
         } else {
             shade = 0.2;
