@@ -223,12 +223,10 @@ struct Texture3D {
     int depth = 0;
 };
 
-using DitherArr = vector<vector<int>>;
+using DitherArr = vector<vector<double>>;
 
-Texture3D gen_dithermap(const vector<DitherArr> &arrs) {
+Texture3D gen_dithermap(int width, int height, const vector<DitherArr> &arrs) {
     std::vector<unsigned char> image;
-    int width = 640;
-    int height = 480;
     int depth = arrs.size();
     image.resize(width * height * depth);
 
@@ -236,7 +234,10 @@ Texture3D gen_dithermap(const vector<DitherArr> &arrs) {
         for (int r = 0; r < height; ++r) {
             for (int c = 0; c < width; ++c) {
                 int i = d * width * height + r * width + c;
-                image[i] = (arrs[arrs.size()-d-1][r % 4][c % 4] == 1 ? 255 : 0);
+                auto& dm = arrs[depth-d-1];
+                auto& row = dm[r % dm.size()];
+                auto& pix = row[c % row.size()];
+                image[i] = clamp(int(pix * 255), 0, 255);
             }
         }
     }
@@ -249,8 +250,11 @@ Texture3D gen_dithermap(const vector<DitherArr> &arrs) {
     glGenTextures(1, &rv.handle);
     glBindTexture(GL_TEXTURE_3D, rv.handle);
 
-    glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexImage3D(GL_TEXTURE_3D, 0, GL_RED, width, height, depth, 0, GL_RED, GL_UNSIGNED_BYTE, &image[0]);
 
     glBindTexture(GL_TEXTURE_3D, 0);
@@ -277,7 +281,9 @@ int main() try {
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow *window = glfwCreateWindow(640, 480, "Shader Sandy", glfwGetPrimaryMonitor(), nullptr);
+    int screenWidth = 800;
+    int screenHeight = 600;
+    GLFWwindow *window = glfwCreateWindow(screenWidth, screenHeight, "Shader Sandy", nullptr, nullptr);
     if (!window) {
         throw runtime_error("Failed to open window!");
     }
@@ -302,6 +308,9 @@ int main() try {
     glDeleteShader(frag_shader);
     glUseProgram(shader);
 
+    glUniform1f(glGetUniformLocation(shader, "ScreenWidth"), screenWidth);
+    glUniform1f(glGetUniformLocation(shader, "ScreenHeight"), screenHeight);
+
     glUniform1i(glGetUniformLocation(shader, "Texture"), 0);
     glUniform1i(glGetUniformLocation(shader, "DitherMap"), 1);
 
@@ -323,26 +332,58 @@ int main() try {
     Texture flameTexture = load_texture("data/flame.png");
 
     vector<DitherArr> dithers = {
+            DitherArr{{0.0}},
             DitherArr{
-                    {0, 0, 0, 0},
-                    {0, 1, 0, 1},
-                    {0, 0, 0, 0},
-                    {0, 1, 0, 1},
+                    {0.5, 1.0, 0.5, 0.0, 0.0, 0.0},
+                    {1.0, 1.0, 1.0, 0.0, 0.0, 0.0},
+                    {0.5, 1.0, 0.5, 0.0, 0.0, 0.0},
+                    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+                    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+                    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
             },
             DitherArr{
-                    {1, 0, 1, 0},
-                    {0, 1, 0, 1},
-                    {1, 0, 1, 0},
-                    {0, 1, 0, 1},
+                    {0.5, 1.0, 0.5, 0.0, 0.0, 0.0},
+                    {1.0, 1.0, 1.0, 0.0, 0.0, 0.0},
+                    {0.5, 1.0, 0.5, 0.0, 0.0, 0.0},
+                    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+                    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+                    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
             },
             DitherArr{
-                    {1, 1, 1, 1},
-                    {1, 0, 1, 0},
-                    {1, 1, 1, 1},
-                    {1, 0, 1, 0},
+                    {0.5, 1.0, 0.5, 0.5, 0.0, 0.5},
+                    {1.0, 1.0, 1.0, 0.0, 0.0, 0.0},
+                    {0.5, 1.0, 0.5, 0.5, 0.0, 0.5},
+                    {0.5, 0.0, 0.5, 0.5, 1.0, 0.5},
+                    {0.0, 0.0, 0.0, 1.0, 1.0, 1.0},
+                    {0.5, 0.0, 0.5, 0.5, 1.0, 0.5},
             },
+            DitherArr{
+                    {0.5, 1.0, 0.5, 0.5, 0.0, 0.5},
+                    {1.0, 1.0, 1.0, 0.0, 0.0, 0.0},
+                    {0.5, 1.0, 0.5, 0.5, 0.0, 0.5},
+                    {0.5, 0.0, 0.5, 0.5, 1.0, 0.5},
+                    {0.0, 0.0, 0.0, 1.0, 1.0, 1.0},
+                    {0.5, 0.0, 0.5, 0.5, 1.0, 0.5},
+            },
+            DitherArr{
+                    {1.0, 1.0, 1.0, 1.0, 1.0, 1.0},
+                    {1.0, 1.0, 1.0, 1.0, 1.0, 1.0},
+                    {1.0, 1.0, 1.0, 1.0, 1.0, 1.0},
+                    {0.5, 0.0, 0.5, 1.0, 1.0, 1.0},
+                    {0.0, 0.0, 0.0, 1.0, 1.0, 1.0},
+                    {0.5, 0.0, 0.5, 1.0, 1.0, 1.0},
+            },
+            DitherArr{
+                    {1.0, 1.0, 1.0, 1.0, 1.0, 1.0},
+                    {1.0, 1.0, 1.0, 1.0, 1.0, 1.0},
+                    {1.0, 1.0, 1.0, 1.0, 1.0, 1.0},
+                    {0.5, 0.0, 0.5, 1.0, 1.0, 1.0},
+                    {0.0, 0.0, 0.0, 1.0, 1.0, 1.0},
+                    {0.5, 0.0, 0.5, 1.0, 1.0, 1.0},
+            },
+            DitherArr{{1.0}},
     };
-    Texture3D ditherMap = gen_dithermap(dithers);
+    Texture3D ditherMap = gen_dithermap(screenWidth, screenHeight, dithers);
 
     float fovy = 90.f;
     mat4 camProj = perspective(fovy, 4.f / 3.f, 0.01f, 100.f);
@@ -431,6 +472,13 @@ int main() try {
         }
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
             lightRadius -= delta;
+        }
+
+        if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
+            modelPos = translate(modelPos, vec3(0,delta,0));
+        }
+        if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) {
+            modelPos = translate(modelPos, vec3(0,-delta,0));
         }
 
         if (glfwGetKey(window, GLFW_KEY_KP_8) == GLFW_PRESS) {

@@ -10,18 +10,24 @@ uniform sampler3D DitherMap;
 uniform vec3 LightPos;
 uniform float LightRadius;
 
+uniform float ScreenWidth;
+uniform float ScreenHeight;
+
 out vec4 FragColor;
 
 void main() {
+
     /*
-    float shade = dot(Normal, vec3(0.5,0.1,1.0));
-    int pal = clamp(int(shade*7.0),0,6);
-    if (pal == 0 || pal == 1) {
-        shade = 0.2;
-    } else if (pal == 6 || pal == 5) {
+    float shade = dot(normalize(Normal), normalize(LightPos));
+    float fullBright = 0.8;
+    float lowBright = 0.5;
+    if (shade > fullBright) {
         shade = 1.0;
+    } else if (shade < lowBright) {
+        shade = 0.2;
     } else {
-        vec4 dither = texture(DitherMap[pal-1], vec2(gl_FragCoord.x/640.0,gl_FragCoord.y/480.0));
+        float ditherStrength = 1.0-(shade-lowBright)/(fullBright-lowBright);
+        vec4 dither = texture(DitherMap, vec3(gl_FragCoord.x/ScreenWidth,gl_FragCoord.y/ScreenHeight,ditherStrength));
         if (dither.r > 0.5) {
             shade = 1.0;
         } else {
@@ -29,6 +35,18 @@ void main() {
         }
     }
     */
+
+    float fullBright = 0.8;
+    float lowBright = 0.2;
+    float shade = clamp((dot(normalize(Normal), normalize(LightPos))-lowBright)/(fullBright-lowBright),0.0,1.0);
+    if (shade > 0.0 && shade < 1.0) {
+        shade = mix(0.2,1.0,pow(texture(DitherMap, vec3(gl_FragCoord.x/ScreenWidth, gl_FragCoord.y/ScreenHeight, 1.0-shade)).r,2.0));
+    } else {
+        shade = clamp(shade, 0.2, 1.0);
+    }
+
+
+    /*
 
     vec3 lpos = LightPos;
     float lrad = LightRadius;
@@ -47,6 +65,7 @@ void main() {
             shade = 0.2;
         }
     }
+    */
 
     FragColor = texture(Texture, TexCoord) * shade;
     //FragColor = vec4(vec3(texture(DitherMap, TexCoord)),1.0);
